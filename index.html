@@ -404,7 +404,7 @@
 
     <script>
         let session = null;
-        const modelPath = './mlp_net_model.onnx';
+        const modelPath = './classification/mlp_net_model.onnx';
 
         // Breed list with mapping to indices (0-165)
         const breeds = [
@@ -475,7 +475,7 @@
                 return true;
             } catch (error) {
                 console.error('Error loading model:', error);
-                showError('Failed to load model. Make sure mlp_net_model.onnx is in the same directory.');
+                showError('Failed to load model. Make sure mlp_net_model.onnx is in the classification folder.');
                 return false;
             }
         }
