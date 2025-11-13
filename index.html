@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pet Adoption Prediction - ML Model</title>
+    <title>ML Models - Classification & Regression</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
     <style>
         * {
@@ -28,11 +28,59 @@
             overflow: hidden;
         }
 
-        .header {
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            background: transparent;
+            color: #666;
+        }
+
+        .tab.active {
+            color: white;
+            position: relative;
+        }
+
+        .tab.active.classifier {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .tab.active.regressor {
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .header {
             color: white;
             padding: 30px;
             text-align: center;
+        }
+
+        .header.classifier {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .header.regressor {
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
         }
 
         .header h1 {
@@ -83,10 +131,74 @@
             border-color: #667eea;
         }
 
+        .form-group.regressor input:focus,
+        .form-group.regressor select:focus {
+            border-color: #1db954;
+        }
+
         .form-group small {
             color: #666;
             font-size: 0.85em;
             margin-top: 4px;
+        }
+
+        /* Slider Styles */
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider {
+            flex: 1;
+            height: 8px;
+            border-radius: 5px;
+            background: #e0e0e0;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .regressor .slider::-webkit-slider-thumb {
+            background: #1db954;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            transition: background 0.3s;
+        }
+
+        .regressor .slider::-moz-range-thumb {
+            background: #1db954;
+        }
+
+        .slider-value {
+            min-width: 60px;
+            text-align: right;
+            font-weight: 600;
+            color: #333;
         }
 
         .submit-btn {
@@ -103,9 +215,17 @@
             margin-top: 20px;
         }
 
+        .submit-btn.regressor {
+            background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+        }
+
         .submit-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn.regressor:hover {
+            box-shadow: 0 10px 20px rgba(29, 185, 84, 0.4);
         }
 
         .submit-btn:active {
@@ -153,6 +273,12 @@
             color: #721c24;
         }
 
+        .result-info {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+        }
+
         .result-title {
             font-size: 1.5em;
             font-weight: 600;
@@ -185,6 +311,10 @@
             font-weight: 600;
         }
 
+        .probability-fill.regressor {
+            background: linear-gradient(90deg, #1db954 0%, #1ed760 100%);
+        }
+
         .loading {
             display: none;
             text-align: center;
@@ -203,6 +333,10 @@
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto;
+        }
+
+        .spinner.regressor {
+            border-top-color: #1db954;
         }
 
         @keyframes spin {
@@ -227,187 +361,362 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🐾 Pet Adoption Predictor</h1>
-            <p>Predict the likelihood of a pet being adopted</p>
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab active classifier" onclick="switchTab('classifier')">🐾 Classifier</button>
+            <button class="tab regressor" onclick="switchTab('regressor')">🎵 Regressor</button>
         </div>
 
-        <div class="form-container">
-            <form id="predictionForm">
-                <div class="form-grid">
-                    <!-- Type -->
-                    <div class="form-group">
-                        <label for="type">Pet Type *</label>
-                        <select id="type" name="type" required>
-                            <option value="">Select...</option>
-                            <option value="0">Cat</option>
-                            <option value="1">Dog</option>
-                        </select>
-                        <small>Cat=0, Dog=1</small>
-                    </div>
-
-                    <!-- Age -->
-                    <div class="form-group">
-                        <label for="age">Age (in months) *</label>
-                        <input type="number" id="age" name="age" min="0" max="120" required>
-                        <small>Will be converted to age bucket (0-5)</small>
-                    </div>
-
-                    <!-- Breed1 -->
-                    <div class="form-group">
-                        <label for="breed1">Breed *</label>
-                        <select id="breed1" name="breed1" required>
-                            <option value="">Select breed...</option>
-                        </select>
-                        <small>Select the pet's breed</small>
-                    </div>
-
-                    <!-- Gender -->
-                    <div class="form-group">
-                        <label for="gender">Gender *</label>
-                        <select id="gender" name="gender" required>
-                            <option value="">Select...</option>
-                            <option value="0">Male</option>
-                            <option value="1">Female</option>
-                        </select>
-                        <small>Male=0, Female=1</small>
-                    </div>
-
-                    <!-- Color1 -->
-                    <div class="form-group">
-                        <label for="color1">Primary Color *</label>
-                        <select id="color1" name="color1" required>
-                            <option value="">Select...</option>
-                            <option value="0">Black</option>
-                            <option value="1">Brown</option>
-                            <option value="2">Cream</option>
-                            <option value="3">Gray</option>
-                            <option value="4">Golden</option>
-                            <option value="5">White</option>
-                            <option value="6">Yellow</option>
-                        </select>
-                        <small>Primary color of the pet</small>
-                    </div>
-
-                    <!-- Color2 -->
-                    <div class="form-group">
-                        <label for="color2">Secondary Color *</label>
-                        <select id="color2" name="color2" required>
-                            <option value="">Select...</option>
-                            <option value="0">White</option>
-                            <option value="1">Brown</option>
-                            <option value="2">No Color</option>
-                            <option value="3">Gray</option>
-                            <option value="4">Cream</option>
-                            <option value="5">Golden</option>
-                            <option value="6">Yellow</option>
-                        </select>
-                        <small>Secondary color (or "No Color")</small>
-                    </div>
-
-                    <!-- MaturitySize -->
-                    <div class="form-group">
-                        <label for="maturitySize">Maturity Size *</label>
-                        <select id="maturitySize" name="maturitySize" required>
-                            <option value="">Select...</option>
-                            <option value="0">Small</option>
-                            <option value="1">Medium</option>
-                            <option value="2">Large</option>
-                        </select>
-                        <small>Expected adult size</small>
-                    </div>
-
-                    <!-- FurLength -->
-                    <div class="form-group">
-                        <label for="furLength">Fur Length *</label>
-                        <select id="furLength" name="furLength" required>
-                            <option value="">Select...</option>
-                            <option value="0">Short</option>
-                            <option value="1">Medium</option>
-                            <option value="2">Long</option>
-                        </select>
-                        <small>Length of fur/coat</small>
-                    </div>
-
-                    <!-- Vaccinated -->
-                    <div class="form-group">
-                        <label for="vaccinated">Vaccinated *</label>
-                        <select id="vaccinated" name="vaccinated" required>
-                            <option value="">Select...</option>
-                            <option value="0">No / Not Sure</option>
-                            <option value="1">Yes</option>
-                        </select>
-                        <small>No/Not Sure=0, Yes=1</small>
-                    </div>
-
-                    <!-- Sterilized -->
-                    <div class="form-group">
-                        <label for="sterilized">Sterilized *</label>
-                        <select id="sterilized" name="sterilized" required>
-                            <option value="">Select...</option>
-                            <option value="0">No</option>
-                            <option value="1">Not Sure</option>
-                            <option value="2">Yes</option>
-                        </select>
-                        <small>Sterilization status</small>
-                    </div>
-
-                    <!-- Health -->
-                    <div class="form-group">
-                        <label for="health">Health Status *</label>
-                        <select id="health" name="health" required>
-                            <option value="">Select...</option>
-                            <option value="0">Healthy</option>
-                            <option value="1">Minor Injury</option>
-                            <option value="2">Serious Injury</option>
-                        </select>
-                        <small>Current health condition</small>
-                    </div>
-
-                    <!-- Fee -->
-                    <div class="form-group">
-                        <label for="fee">Adoption Fee *</label>
-                        <input type="number" id="fee" name="fee" min="0" required>
-                        <small>Adoption fee in local currency</small>
-                    </div>
-
-                    <!-- PhotoAmt -->
-                    <div class="form-group">
-                        <label for="photoAmt">Number of Photos *</label>
-                        <input type="number" id="photoAmt" name="photoAmt" min="0" required>
-                        <small>Number of photos available</small>
-                    </div>
-                </div>
-
-                <button type="submit" class="submit-btn" id="submitBtn">Predict Adoption Likelihood</button>
-            </form>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p style="margin-top: 10px;">Loading model and making prediction...</p>
+        <!-- Classifier Tab -->
+        <div id="classifierTab" class="tab-content active">
+            <div class="header classifier">
+                <h1>🐾 Pet Adoption Predictor</h1>
+                <p>Predict the likelihood of a pet being adopted</p>
             </div>
 
-            <div class="error-message" id="errorMessage"></div>
+            <div class="form-container">
+                <form id="predictionForm">
+                    <div class="form-grid">
+                        <!-- Type -->
+                        <div class="form-group">
+                            <label for="type">Pet Type *</label>
+                            <select id="type" name="type" required>
+                                <option value="">Select...</option>
+                                <option value="0">Cat</option>
+                                <option value="1">Dog</option>
+                            </select>
+                            <small>Cat=0, Dog=1</small>
+                        </div>
 
-            <div class="result-container" id="resultContainer">
-                <div class="result-title" id="resultTitle"></div>
-                <div id="resultText"></div>
-                <div class="result-probability">
-                    <strong>Model Confidence:</strong>
-                    <div class="probability-bar">
-                        <div class="probability-fill" id="probabilityFill"></div>
+                        <!-- Age -->
+                        <div class="form-group">
+                            <label for="age">Age (in months) *</label>
+                            <input type="number" id="age" name="age" min="0" max="120" required>
+                            <small>Will be converted to age bucket (0-5)</small>
+                        </div>
+
+                        <!-- Breed1 -->
+                        <div class="form-group">
+                            <label for="breed1">Breed *</label>
+                            <select id="breed1" name="breed1" required>
+                                <option value="">Select breed...</option>
+                            </select>
+                            <small>Select the pet's breed</small>
+                        </div>
+
+                        <!-- Gender -->
+                        <div class="form-group">
+                            <label for="gender">Gender *</label>
+                            <select id="gender" name="gender" required>
+                                <option value="">Select...</option>
+                                <option value="0">Male</option>
+                                <option value="1">Female</option>
+                            </select>
+                            <small>Male=0, Female=1</small>
+                        </div>
+
+                        <!-- Color1 -->
+                        <div class="form-group">
+                            <label for="color1">Primary Color *</label>
+                            <select id="color1" name="color1" required>
+                                <option value="">Select...</option>
+                                <option value="0">Black</option>
+                                <option value="1">Brown</option>
+                                <option value="2">Cream</option>
+                                <option value="3">Gray</option>
+                                <option value="4">Golden</option>
+                                <option value="5">White</option>
+                                <option value="6">Yellow</option>
+                            </select>
+                            <small>Primary color of the pet</small>
+                        </div>
+
+                        <!-- Color2 -->
+                        <div class="form-group">
+                            <label for="color2">Secondary Color *</label>
+                            <select id="color2" name="color2" required>
+                                <option value="">Select...</option>
+                                <option value="0">White</option>
+                                <option value="1">Brown</option>
+                                <option value="2">No Color</option>
+                                <option value="3">Gray</option>
+                                <option value="4">Cream</option>
+                                <option value="5">Golden</option>
+                                <option value="6">Yellow</option>
+                            </select>
+                            <small>Secondary color (or "No Color")</small>
+                        </div>
+
+                        <!-- MaturitySize -->
+                        <div class="form-group">
+                            <label for="maturitySize">Maturity Size *</label>
+                            <select id="maturitySize" name="maturitySize" required>
+                                <option value="">Select...</option>
+                                <option value="0">Small</option>
+                                <option value="1">Medium</option>
+                                <option value="2">Large</option>
+                            </select>
+                            <small>Expected adult size</small>
+                        </div>
+
+                        <!-- FurLength -->
+                        <div class="form-group">
+                            <label for="furLength">Fur Length *</label>
+                            <select id="furLength" name="furLength" required>
+                                <option value="">Select...</option>
+                                <option value="0">Short</option>
+                                <option value="1">Medium</option>
+                                <option value="2">Long</option>
+                            </select>
+                            <small>Length of fur/coat</small>
+                        </div>
+
+                        <!-- Vaccinated -->
+                        <div class="form-group">
+                            <label for="vaccinated">Vaccinated *</label>
+                            <select id="vaccinated" name="vaccinated" required>
+                                <option value="">Select...</option>
+                                <option value="0">No / Not Sure</option>
+                                <option value="1">Yes</option>
+                            </select>
+                            <small>No/Not Sure=0, Yes=1</small>
+                        </div>
+
+                        <!-- Sterilized -->
+                        <div class="form-group">
+                            <label for="sterilized">Sterilized *</label>
+                            <select id="sterilized" name="sterilized" required>
+                                <option value="">Select...</option>
+                                <option value="0">No</option>
+                                <option value="1">Not Sure</option>
+                                <option value="2">Yes</option>
+                            </select>
+                            <small>Sterilization status</small>
+                        </div>
+
+                        <!-- Health -->
+                        <div class="form-group">
+                            <label for="health">Health Status *</label>
+                            <select id="health" name="health" required>
+                                <option value="">Select...</option>
+                                <option value="0">Healthy</option>
+                                <option value="1">Minor Injury</option>
+                                <option value="2">Serious Injury</option>
+                            </select>
+                            <small>Current health condition</small>
+                        </div>
+
+                        <!-- Fee -->
+                        <div class="form-group">
+                            <label for="fee">Adoption Fee *</label>
+                            <input type="number" id="fee" name="fee" min="0" required>
+                            <small>Adoption fee in local currency</small>
+                        </div>
+
+                        <!-- PhotoAmt -->
+                        <div class="form-group">
+                            <label for="photoAmt">Number of Photos *</label>
+                            <input type="number" id="photoAmt" name="photoAmt" min="0" required>
+                            <small>Number of photos available</small>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="submitBtn">Predict Adoption Likelihood</button>
+                </form>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px;">Loading model and making prediction...</p>
+                </div>
+
+                <div class="error-message" id="errorMessage"></div>
+
+                <div class="result-container" id="resultContainer">
+                    <div class="result-title" id="resultTitle"></div>
+                    <div id="resultText"></div>
+                    <div class="result-probability">
+                        <strong>Model Confidence:</strong>
+                        <div class="probability-bar">
+                            <div class="probability-fill" id="probabilityFill"></div>
+                        </div>
+                    </div>
+                    <div class="model-metrics" id="modelMetrics" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1);">
+                        <div style="font-size: 0.9em; color: #666;">
+                            <strong>Model Performance:</strong>
+                            <div style="margin-top: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                                <div>Precision: <strong>73.2%</strong></div>
+                                <div>Recall: <strong>66.8%</strong></div>
+                                <div>F1-Score: <strong>68.6%</strong></div>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 0.85em; font-style: italic;">
+                                Note: These metrics reflect the model's overall performance on the test set.
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="model-metrics" id="modelMetrics" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1);">
-                    <div style="font-size: 0.9em; color: #666;">
-                        <strong>Model Performance:</strong>
-                        <div style="margin-top: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                            <div>Precision: <strong>73.2%</strong></div>
-                            <div>Recall: <strong>66.8%</strong></div>
-                            <div>F1-Score: <strong>68.6%</strong></div>
+            </div>
+        </div>
+
+        <!-- Regressor Tab -->
+        <div id="regressorTab" class="tab-content">
+            <div class="header regressor">
+                <h1>🎵 Song Popularity Predictor</h1>
+                <p>Predict the popularity of a song based on audio features</p>
+            </div>
+
+            <div class="form-container regressor">
+                <form id="regressionForm">
+                    <div class="form-grid">
+                        <!-- Duration -->
+                        <div class="form-group regressor">
+                            <label for="duration_ms">Duration (ms) *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="duration_ms" name="duration_ms" min="0" max="600000" value="200000" step="1000" class="slider" required>
+                                    <span class="slider-value" id="duration_ms_value">200000</span>
+                                </div>
+                            </div>
+                            <small>Song duration in milliseconds</small>
                         </div>
-                        <div style="margin-top: 8px; font-size: 0.85em; font-style: italic;">
-                            Note: These metrics reflect the model's overall performance on the test set.
+
+                        <!-- Danceability -->
+                        <div class="form-group regressor">
+                            <label for="danceability">Danceability *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="danceability" name="danceability" min="0" max="1" value="0.5" step="0.01" class="slider" required>
+                                    <span class="slider-value" id="danceability_value">0.50</span>
+                                </div>
+                            </div>
+                            <small>How suitable a track is for dancing (0-1)</small>
+                        </div>
+
+                        <!-- Energy -->
+                        <div class="form-group regressor">
+                            <label for="energy">Energy *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="energy" name="energy" min="0" max="1" value="0.5" step="0.01" class="slider" required>
+                                    <span class="slider-value" id="energy_value">0.50</span>
+                                </div>
+                            </div>
+                            <small>Perceptual measure of intensity and power (0-1)</small>
+                        </div>
+
+                        <!-- Key -->
+                        <div class="form-group regressor">
+                            <label for="key">Key *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="key" name="key" min="0" max="11" value="5" step="1" class="slider" required>
+                                    <span class="slider-value" id="key_value">5</span>
+                                </div>
+                            </div>
+                            <small>Key of the track (0=C, 1=C#, ..., 11=B)</small>
+                        </div>
+
+                        <!-- Loudness -->
+                        <div class="form-group regressor">
+                            <label for="loudness">Loudness (dB) *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="loudness" name="loudness" min="-60" max="0" value="-10" step="0.1" class="slider" required>
+                                    <span class="slider-value" id="loudness_value">-10.0</span>
+                                </div>
+                            </div>
+                            <small>Overall loudness in decibels (-60 to 0)</small>
+                        </div>
+
+                        <!-- Mode -->
+                        <div class="form-group regressor">
+                            <label for="mode">Mode *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="mode" name="mode" min="0" max="1" value="1" step="1" class="slider" required>
+                                    <span class="slider-value" id="mode_value">1</span>
+                                </div>
+                            </div>
+                            <small>Major (1) or Minor (0)</small>
+                        </div>
+
+                        <!-- Speechiness -->
+                        <div class="form-group regressor">
+                            <label for="speechiness">Speechiness *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="speechiness" name="speechiness" min="0" max="1" value="0.05" step="0.01" class="slider" required>
+                                    <span class="slider-value" id="speechiness_value">0.05</span>
+                                </div>
+                            </div>
+                            <small>Presence of spoken words (0-1)</small>
+                        </div>
+
+                        <!-- Acousticness -->
+                        <div class="form-group regressor">
+                            <label for="acousticness">Acousticness *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="acousticness" name="acousticness" min="0" max="1" value="0.5" step="0.01" class="slider" required>
+                                    <span class="slider-value" id="acousticness_value">0.50</span>
+                                </div>
+                            </div>
+                            <small>Confidence measure of whether track is acoustic (0-1)</small>
+                        </div>
+
+                        <!-- Instrumentalness -->
+                        <div class="form-group regressor">
+                            <label for="instrumentalness">Instrumentalness *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="instrumentalness" name="instrumentalness" min="0" max="1" value="0.0" step="0.01" class="slider" required>
+                                    <span class="slider-value" id="instrumentalness_value">0.00</span>
+                                </div>
+                            </div>
+                            <small>Predicts whether track contains no vocals (0-1)</small>
+                        </div>
+
+                        <!-- Tempo -->
+                        <div class="form-group regressor">
+                            <label for="tempo">Tempo (BPM) *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="tempo" name="tempo" min="0" max="250" value="120" step="0.1" class="slider" required>
+                                    <span class="slider-value" id="tempo_value">120.0</span>
+                                </div>
+                            </div>
+                            <small>Overall estimated tempo in beats per minute</small>
+                        </div>
+
+                        <!-- Popularity -->
+                        <div class="form-group regressor">
+                            <label for="popularity">Popularity *</label>
+                            <div class="slider-container">
+                                <div class="slider-wrapper">
+                                    <input type="range" id="popularity" name="popularity" min="0" max="100" value="50" step="1" class="slider" required>
+                                    <span class="slider-value" id="popularity_value">50</span>
+                                </div>
+                            </div>
+                            <small>Popularity score (0-100)</small>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn regressor" id="regressionSubmitBtn">Predict Song Popularity</button>
+                </form>
+
+                <div class="loading" id="regressionLoading">
+                    <div class="spinner regressor"></div>
+                    <p style="margin-top: 10px;">Loading model and making prediction...</p>
+                </div>
+
+                <div class="error-message" id="regressionErrorMessage"></div>
+
+                <div class="result-container" id="regressionResultContainer">
+                    <div class="result-title" id="regressionResultTitle"></div>
+                    <div id="regressionResultText"></div>
+                    <div class="result-probability">
+                        <strong>Predicted Popularity Score:</strong>
+                        <div class="probability-bar">
+                            <div class="probability-fill regressor" id="regressionProbabilityFill"></div>
                         </div>
                     </div>
                 </div>
@@ -416,8 +725,31 @@
     </div>
 
     <script>
-        let session = null;
-        const modelPath = './classification/mlp_net_model.onnx';
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`.tab.${tabName}`).classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+
+            // Update body background
+            if (tabName === 'regressor') {
+                document.body.style.background = 'linear-gradient(135deg, #1db954 0%, #1ed760 100%)';
+            } else {
+                document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            }
+        }
+
+        // ========== CLASSIFIER CODE ==========
+        let classifierSession = null;
+        const classifierModelPath = './classification/mlp_net_model.onnx';
 
         // Breed list with mapping to indices (0-165)
         const breeds = [
@@ -465,8 +797,6 @@
         ];
 
         // Normalization parameters (from training)
-        // These should be included in the ONNX model, but we include them here as backup
-        // Update these values if your model uses different normalization
         const x_means = [0.5816, 3.1584, 9.4218, 0.5701, 1.3431, 1.8388, 0.8858, 0.4595, 0.4514, 0.6748, 0.0490, 22.6555, 3.4510];
         const x_deviations = [0.4934, 1.9138, 19.6877, 0.4952, 1.7755, 1.6229, 0.5356, 0.5986, 0.4978, 0.8718, 0.2314, 75.6528, 3.0928];
 
@@ -480,21 +810,21 @@
             return 5;
         }
 
-        // Load ONNX model
-        async function loadModel() {
+        // Load classifier model
+        async function loadClassifierModel() {
             try {
-                session = await ort.InferenceSession.create(modelPath);
-                console.log('Model loaded successfully');
+                classifierSession = await ort.InferenceSession.create(classifierModelPath);
+                console.log('Classifier model loaded successfully');
                 return true;
             } catch (error) {
-                console.error('Error loading model:', error);
-                showError('Failed to load model. Make sure mlp_net_model.onnx is in the classification folder.');
+                console.error('Error loading classifier model:', error);
+                showClassifierError('Failed to load model. Make sure mlp_net_model.onnx is in the classification folder.');
                 return false;
             }
         }
 
         // Show error message
-        function showError(message) {
+        function showClassifierError(message) {
             const errorDiv = document.getElementById('errorMessage');
             errorDiv.textContent = message;
             errorDiv.classList.add('show');
@@ -503,14 +833,11 @@
             }, 5000);
         }
 
-        // Make prediction
-        async function makePrediction(formData) {
+        // Make classifier prediction
+        async function makeClassifierPrediction(formData) {
             try {
-                // Convert age to bucket
                 const age = bucketizeAge(parseInt(formData.get('age')));
 
-                // Prepare input array in the correct order:
-                // Type, Age, Breed1, Gender, Color1, Color2, MaturitySize, FurLength, Vaccinated, Sterilized, Health, Fee, PhotoAmt
                 const inputArray = [
                     parseFloat(formData.get('type')),
                     age,
@@ -527,30 +854,18 @@
                     parseFloat(formData.get('photoAmt'))
                 ];
 
-                // Normalize the input (subtract mean and divide by std)
-                // Note: If the ONNX model already includes normalization, this will double-normalize
-                // If predictions are off, try removing this normalization step
                 const normalizedInput = inputArray.map((val, idx) => {
-                    return (val - x_means[idx]) / (x_deviations[idx] + 0.0001); // Add small epsilon to avoid division by zero
+                    return (val - x_means[idx]) / (x_deviations[idx] + 0.0001);
                 });
 
-                // Create tensor
                 const tensor = new ort.Tensor('float32', new Float32Array(normalizedInput), [1, 13]);
-
-                // Run inference
                 const feeds = { input: tensor };
-                const results = await session.run(feeds);
+                const results = await classifierSession.run(feeds);
                 const output = results.output.data;
 
-                // The model outputs probabilities for 2 classes (binary classification):
-                // - Class 0 = Not Adopted (target 0)
-                // - Class 1 = Adopted (target 1)
                 const notAdoptedProb = output[0];
                 const adoptedProb = output[1];
-                
-                // Determine prediction: adopted if adopted probability > 0.5
                 const isAdopted = adoptedProb > 0.5;
-                const adoptionProbability = isAdopted ? adoptedProb : notAdoptedProb;
 
                 return {
                     adopted: isAdopted,
@@ -563,13 +878,10 @@
             }
         }
 
-        // Model performance metrics
-        const modelPrecision = 0.732;  // 73.2%
-        const modelRecall = 0.668;    // 66.8%
-        const modelF1 = 0.686;         // 68.6%
+        const modelF1 = 0.686;
 
-        // Display result
-        function displayResult(prediction) {
+        // Display classifier result
+        function displayClassifierResult(prediction) {
             const resultContainer = document.getElementById('resultContainer');
             const resultTitle = document.getElementById('resultTitle');
             const resultText = document.getElementById('resultText');
@@ -577,11 +889,8 @@
 
             resultContainer.className = 'result-container show';
             
-            // Calculate adjusted confidence based on model performance
-            // We use F1-score as a general reliability metric
-            // The raw probability is adjusted by the model's F1-score to reflect actual reliability
             const rawProbability = prediction.probability;
-            const adjustedConfidence = rawProbability * modelF1; // Scale by F1-score
+            const adjustedConfidence = rawProbability * modelF1;
             
             if (prediction.adopted) {
                 resultContainer.className += ' result-success';
@@ -596,13 +905,12 @@
                     `Consider adjusting features like fee, photos, or health status.`;
             }
 
-            // Display the adjusted confidence in the bar
             const percentage = (adjustedConfidence * 100).toFixed(1);
             probabilityFill.style.width = percentage + '%';
             probabilityFill.textContent = percentage + '%';
         }
 
-        // Handle form submission
+        // Handle classifier form submission
         document.getElementById('predictionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -610,36 +918,26 @@
             const loading = document.getElementById('loading');
             const resultContainer = document.getElementById('resultContainer');
             
-            // Hide previous results
             resultContainer.classList.remove('show');
-            
-            // Show loading
             submitBtn.disabled = true;
             loading.classList.add('show');
             
             try {
-                // Load model if not already loaded
-                if (!session) {
-                    const loaded = await loadModel();
+                if (!classifierSession) {
+                    const loaded = await loadClassifierModel();
                     if (!loaded) {
                         throw new Error('Model failed to load');
                     }
                 }
                 
-                // Get form data
                 const formData = new FormData(e.target);
-                
-                // Make prediction
-                const prediction = await makePrediction(formData);
-                
-                // Display result
-                displayResult(prediction);
+                const prediction = await makeClassifierPrediction(formData);
+                displayClassifierResult(prediction);
                 
             } catch (error) {
                 console.error('Error:', error);
-                showError('An error occurred during prediction: ' + error.message);
+                showClassifierError('An error occurred during prediction: ' + error.message);
             } finally {
-                // Hide loading
                 loading.classList.remove('show');
                 submitBtn.disabled = false;
             }
@@ -656,24 +954,176 @@
             });
         }
 
-        // Load model on page load
-        window.addEventListener('load', async () => {
-            // Populate breed dropdown first
-            populateBreedDropdown();
+        // ========== REGRESSOR CODE ==========
+        let regressorSession = null;
+        const regressorModelPath = './regression/xgboost_songs_model.onnx';
+
+        // Update slider values in real-time
+        const sliderIds = ['duration_ms', 'danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'tempo', 'popularity'];
+        sliderIds.forEach(id => {
+            const slider = document.getElementById(id);
+            const valueDisplay = document.getElementById(id + '_value');
+            if (slider && valueDisplay) {
+                slider.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (id === 'duration_ms') {
+                        valueDisplay.textContent = Math.round(value).toLocaleString();
+                    } else if (id === 'loudness' || id === 'tempo') {
+                        valueDisplay.textContent = value.toFixed(1);
+                    } else if (id === 'danceability' || id === 'energy' || id === 'speechiness' || id === 'acousticness' || id === 'instrumentalness') {
+                        valueDisplay.textContent = value.toFixed(2);
+                    } else {
+                        valueDisplay.textContent = Math.round(value);
+                    }
+                });
+            }
+        });
+
+        // Load regressor model
+        async function loadRegressorModel() {
+            try {
+                regressorSession = await ort.InferenceSession.create(regressorModelPath);
+                console.log('Regressor model loaded successfully');
+                return true;
+            } catch (error) {
+                console.error('Error loading regressor model:', error);
+                showRegressorError('Failed to load model. Make sure xgboost_songs_model.onnx is in the regression folder.');
+                return false;
+            }
+        }
+
+        // Show regressor error
+        function showRegressorError(message) {
+            const errorDiv = document.getElementById('regressionErrorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        // Make regressor prediction
+        async function makeRegressorPrediction(formData) {
+            try {
+                // Prepare input array in the correct order:
+                // duration_ms, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, tempo, popularity
+                const inputArray = [
+                    parseFloat(formData.get('duration_ms')),
+                    parseFloat(formData.get('danceability')),
+                    parseFloat(formData.get('energy')),
+                    parseFloat(formData.get('key')),
+                    parseFloat(formData.get('loudness')),
+                    parseFloat(formData.get('mode')),
+                    parseFloat(formData.get('speechiness')),
+                    parseFloat(formData.get('acousticness')),
+                    parseFloat(formData.get('instrumentalness')),
+                    parseFloat(formData.get('tempo')),
+                    parseFloat(formData.get('popularity'))
+                ];
+
+                // Create tensor (XGBoost expects 2D input: [batch_size, num_features])
+                const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 11]);
+
+                // Run inference
+                // Note: The input name might vary depending on how the model was exported
+                // Common names: 'float_input', 'input', 'features'
+                const feeds = { float_input: tensor };
+                const results = await regressorSession.run(feeds);
+                
+                // Get output (regression returns a single value)
+                const output = results.output || results.variable || Object.values(results)[0];
+                const popularityScore = output.data[0];
+
+                return {
+                    popularity: popularityScore
+                };
+            } catch (error) {
+                // Try alternative input names
+                try {
+                    const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 11]);
+                    const feeds = { input: tensor };
+                    const results = await regressorSession.run(feeds);
+                    const output = results.output || results.variable || Object.values(results)[0];
+                    const popularityScore = output.data[0];
+                    return { popularity: popularityScore };
+                } catch (e2) {
+                    console.error('Prediction error:', error, e2);
+                    throw error;
+                }
+            }
+        }
+
+        // Display regressor result
+        function displayRegressorResult(prediction) {
+            const resultContainer = document.getElementById('regressionResultContainer');
+            const resultTitle = document.getElementById('regressionResultTitle');
+            const resultText = document.getElementById('regressionResultText');
+            const probabilityFill = document.getElementById('regressionProbabilityFill');
+
+            resultContainer.className = 'result-container show result-info';
             
-            const loading = document.getElementById('loading');
+            const popularity = Math.max(0, Math.min(100, prediction.popularity)); // Clamp between 0-100
+            
+            resultTitle.textContent = `🎵 Predicted Popularity: ${popularity.toFixed(1)}/100`;
+            resultText.textContent = `Based on the audio features you provided, this song is predicted to have a popularity score of ${popularity.toFixed(1)} out of 100. ` +
+                `Higher scores indicate greater popularity on Spotify.`;
+
+            // Display the popularity score in the bar
+            probabilityFill.style.width = popularity + '%';
+            probabilityFill.textContent = popularity.toFixed(1);
+        }
+
+        // Handle regressor form submission
+        document.getElementById('regressionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('regressionSubmitBtn');
+            const loading = document.getElementById('regressionLoading');
+            const resultContainer = document.getElementById('regressionResultContainer');
+            
+            resultContainer.classList.remove('show');
+            submitBtn.disabled = true;
             loading.classList.add('show');
-            loading.querySelector('p').textContent = 'Loading model...';
             
             try {
-                await loadModel();
+                if (!regressorSession) {
+                    const loaded = await loadRegressorModel();
+                    if (!loaded) {
+                        throw new Error('Model failed to load');
+                    }
+                }
+                
+                const formData = new FormData(e.target);
+                const prediction = await makeRegressorPrediction(formData);
+                displayRegressorResult(prediction);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showRegressorError('An error occurred during prediction: ' + error.message);
+            } finally {
+                loading.classList.remove('show');
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Load models on page load
+        window.addEventListener('load', async () => {
+            populateBreedDropdown();
+            
+            // Load classifier model
+            const loading = document.getElementById('loading');
+            loading.classList.add('show');
+            loading.querySelector('p').textContent = 'Loading classifier model...';
+            
+            try {
+                await loadClassifierModel();
                 loading.querySelector('p').textContent = 'Model loaded! Fill out the form to make a prediction.';
                 setTimeout(() => {
                     loading.classList.remove('show');
                 }, 1000);
             } catch (error) {
                 loading.classList.remove('show');
-                showError('Failed to load model on startup. Please refresh the page.');
+                showClassifierError('Failed to load classifier model on startup. Please refresh the page.');
             }
         });
     </script>
