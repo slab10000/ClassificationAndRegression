@@ -1004,52 +1004,53 @@
 
         // Make regressor prediction
         async function makeRegressorPrediction(formData) {
+            // Prepare input array in the correct order:
+            // duration_ms, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, tempo, popularity
+            const inputArray = [
+                parseFloat(formData.get('duration_ms')),
+                parseFloat(formData.get('danceability')),
+                parseFloat(formData.get('energy')),
+                parseFloat(formData.get('key')),
+                parseFloat(formData.get('loudness')),
+                parseFloat(formData.get('mode')),
+                parseFloat(formData.get('speechiness')),
+                parseFloat(formData.get('acousticness')),
+                parseFloat(formData.get('instrumentalness')),
+                parseFloat(formData.get('tempo')),
+                parseFloat(formData.get('popularity'))
+            ];
+
+            // Create tensor (XGBoost expects 2D input: [batch_size, num_features])
+            const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 11]);
+
+            // Get the input name from the model (hummingbird models typically use 'input')
+            const inputNames = regressorSession.inputNames;
+            const outputNames = regressorSession.outputNames;
+            
+            console.log('Model input names:', inputNames);
+            console.log('Model output names:', outputNames);
+
+            // Try different input names (hummingbird typically uses 'input')
+            const inputName = inputNames[0] || 'input';
+            const feeds = { [inputName]: tensor };
+
             try {
-                // Prepare input array in the correct order:
-                // duration_ms, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, tempo, popularity
-                const inputArray = [
-                    parseFloat(formData.get('duration_ms')),
-                    parseFloat(formData.get('danceability')),
-                    parseFloat(formData.get('energy')),
-                    parseFloat(formData.get('key')),
-                    parseFloat(formData.get('loudness')),
-                    parseFloat(formData.get('mode')),
-                    parseFloat(formData.get('speechiness')),
-                    parseFloat(formData.get('acousticness')),
-                    parseFloat(formData.get('instrumentalness')),
-                    parseFloat(formData.get('tempo')),
-                    parseFloat(formData.get('popularity'))
-                ];
-
-                // Create tensor (XGBoost expects 2D input: [batch_size, num_features])
-                const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 11]);
-
-                // Run inference
-                // Note: The input name might vary depending on how the model was exported
-                // Common names: 'float_input', 'input', 'features'
-                const feeds = { float_input: tensor };
                 const results = await regressorSession.run(feeds);
                 
                 // Get output (regression returns a single value)
-                const output = results.output || results.variable || Object.values(results)[0];
+                // Try different output names
+                const outputName = outputNames[0] || 'output';
+                const output = results[outputName] || results.output || results.variable || Object.values(results)[0];
                 const popularityScore = output.data[0];
 
                 return {
                     popularity: popularityScore
                 };
             } catch (error) {
-                // Try alternative input names
-                try {
-                    const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 11]);
-                    const feeds = { input: tensor };
-                    const results = await regressorSession.run(feeds);
-                    const output = results.output || results.variable || Object.values(results)[0];
-                    const popularityScore = output.data[0];
-                    return { popularity: popularityScore };
-                } catch (e2) {
-                    console.error('Prediction error:', error, e2);
-                    throw error;
-                }
+                console.error('Prediction error:', error);
+                console.error('Available input names:', inputNames);
+                console.error('Available output names:', outputNames);
+                throw error;
             }
         }
 
