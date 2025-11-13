@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pet Adoption Prediction - ML Model</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .form-container {
+            padding: 40px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 0.95em;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 20px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-container {
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .result-container.show {
+            display: block;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .result-danger {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+
+        .result-title {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .result-probability {
+            margin-top: 15px;
+            font-size: 1.1em;
+        }
+
+        .probability-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            margin-top: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .probability-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🐾 Pet Adoption Predictor</h1>
+            <p>Predict the likelihood of a pet being adopted</p>
+        </div>
+
+        <div class="form-container">
+            <form id="predictionForm">
+                <div class="form-grid">
+                    <!-- Type -->
+                    <div class="form-group">
+                        <label for="type">Pet Type *</label>
+                        <select id="type" name="type" required>
+                            <option value="">Select...</option>
+                            <option value="0">Cat</option>
+                            <option value="1">Dog</option>
+                        </select>
+                        <small>Cat=0, Dog=1</small>
+                    </div>
+
+                    <!-- Age -->
+                    <div class="form-group">
+                        <label for="age">Age (in months) *</label>
+                        <input type="number" id="age" name="age" min="0" max="120" required>
+                        <small>Will be converted to age bucket (0-5)</small>
+                    </div>
+
+                    <!-- Breed1 -->
+                    <div class="form-group">
+                        <label for="breed1">Breed *</label>
+                        <select id="breed1" name="breed1" required>
+                            <option value="">Select breed...</option>
+                        </select>
+                        <small>Select the pet's breed</small>
+                    </div>
+
+                    <!-- Gender -->
+                    <div class="form-group">
+                        <label for="gender">Gender *</label>
+                        <select id="gender" name="gender" required>
+                            <option value="">Select...</option>
+                            <option value="0">Male</option>
+                            <option value="1">Female</option>
+                        </select>
+                        <small>Male=0, Female=1</small>
+                    </div>
+
+                    <!-- Color1 -->
+                    <div class="form-group">
+                        <label for="color1">Primary Color *</label>
+                        <select id="color1" name="color1" required>
+                            <option value="">Select...</option>
+                            <option value="0">Black</option>
+                            <option value="1">Brown</option>
+                            <option value="2">Cream</option>
+                            <option value="3">Gray</option>
+                            <option value="4">Golden</option>
+                            <option value="5">White</option>
+                            <option value="6">Yellow</option>
+                        </select>
+                        <small>Primary color of the pet</small>
+                    </div>
+
+                    <!-- Color2 -->
+                    <div class="form-group">
+                        <label for="color2">Secondary Color *</label>
+                        <select id="color2" name="color2" required>
+                            <option value="">Select...</option>
+                            <option value="0">White</option>
+                            <option value="1">Brown</option>
+                            <option value="2">No Color</option>
+                            <option value="3">Gray</option>
+                            <option value="4">Cream</option>
+                            <option value="5">Golden</option>
+                            <option value="6">Yellow</option>
+                        </select>
+                        <small>Secondary color (or "No Color")</small>
+                    </div>
+
+                    <!-- MaturitySize -->
+                    <div class="form-group">
+                        <label for="maturitySize">Maturity Size *</label>
+                        <select id="maturitySize" name="maturitySize" required>
+                            <option value="">Select...</option>
+                            <option value="0">Small</option>
+                            <option value="1">Medium</option>
+                            <option value="2">Large</option>
+                        </select>
+                        <small>Expected adult size</small>
+                    </div>
+
+                    <!-- FurLength -->
+                    <div class="form-group">
+                        <label for="furLength">Fur Length *</label>
+                        <select id="furLength" name="furLength" required>
+                            <option value="">Select...</option>
+                            <option value="0">Short</option>
+                            <option value="1">Medium</option>
+                            <option value="2">Long</option>
+                        </select>
+                        <small>Length of fur/coat</small>
+                    </div>
+
+                    <!-- Vaccinated -->
+                    <div class="form-group">
+                        <label for="vaccinated">Vaccinated *</label>
+                        <select id="vaccinated" name="vaccinated" required>
+                            <option value="">Select...</option>
+                            <option value="0">No / Not Sure</option>
+                            <option value="1">Yes</option>
+                        </select>
+                        <small>No/Not Sure=0, Yes=1</small>
+                    </div>
+
+                    <!-- Sterilized -->
+                    <div class="form-group">
+                        <label for="sterilized">Sterilized *</label>
+                        <select id="sterilized" name="sterilized" required>
+                            <option value="">Select...</option>
+                            <option value="0">No</option>
+                            <option value="1">Not Sure</option>
+                            <option value="2">Yes</option>
+                        </select>
+                        <small>Sterilization status</small>
+                    </div>
+
+                    <!-- Health -->
+                    <div class="form-group">
+                        <label for="health">Health Status *</label>
+                        <select id="health" name="health" required>
+                            <option value="">Select...</option>
+                            <option value="0">Healthy</option>
+                            <option value="1">Minor Injury</option>
+                            <option value="2">Serious Injury</option>
+                        </select>
+                        <small>Current health condition</small>
+                    </div>
+
+                    <!-- Fee -->
+                    <div class="form-group">
+                        <label for="fee">Adoption Fee *</label>
+                        <input type="number" id="fee" name="fee" min="0" required>
+                        <small>Adoption fee in local currency</small>
+                    </div>
+
+                    <!-- PhotoAmt -->
+                    <div class="form-group">
+                        <label for="photoAmt">Number of Photos *</label>
+                        <input type="number" id="photoAmt" name="photoAmt" min="0" required>
+                        <small>Number of photos available</small>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">Predict Adoption Likelihood</button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p style="margin-top: 10px;">Loading model and making prediction...</p>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="result-container" id="resultContainer">
+                <div class="result-title" id="resultTitle"></div>
+                <div id="resultText"></div>
+                <div class="result-probability">
+                    <strong>Confidence:</strong>
+                    <div class="probability-bar">
+                        <div class="probability-fill" id="probabilityFill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let session = null;
+        const modelPath = './mlp_net_model.onnx';
+
+        // Breed list with mapping to indices (0-165)
+        const breeds = [
+            'Abyssinian', 'Akita', 'American Bulldog', 'American Curl',
+            'American Shorthair', 'American Staffordshire Terrier',
+            'American Water Spaniel', 'American Wirehair', 'Applehead Siamese',
+            'Australian Kelpie', 'Australian Shepherd', 'Australian Terrier', 'Balinese',
+            'Basenji', 'Basset Hound', 'Beagle', 'Bedlington Terrier',
+            'Belgian Shepherd Dog Sheepdog', 'Belgian Shepherd Laekenois',
+            'Belgian Shepherd Malinois', 'Bengal', 'Birman', 'Black Labrador Retriever',
+            'Black Mouth Cur', 'Bobtail', 'Bombay', 'Border Collie', 'Boston Terrier',
+            'Boxer', 'British Shorthair', 'Bull Terrier', 'Bullmastiff', 'Burmese',
+            'Burmilla', 'Calico', 'Cattle Dog', 'Cavalier King Charles Spaniel',
+            'Chartreux', 'Chausie', 'Chihuahua', 'Chinese Crested Dog', 'Chow Chow',
+            'Cocker Spaniel', 'Collie', 'Coonhound', 'Corgi', 'Cymric', 'Dachshund',
+            'Dalmatian', 'Dilute Calico', 'Dilute Tortoiseshell', 'Doberman Pinscher',
+            'Domestic Long Hair', 'Domestic Medium Hair', 'Domestic Short Hair',
+            'Dutch Shepherd', 'Egyptian Mau', 'English Bulldog',
+            'English Cocker Spaniel', 'English Pointer', 'English Springer Spaniel',
+            'Exotic Shorthair', 'Extra-Toes Cat (Hemingway Polydactyl)',
+            'Field Spaniel', 'Flat-coated Retriever', 'Fox Terrier', 'Foxhound',
+            'French Bulldog', 'German Pinscher', 'German Shepherd Dog', 'German Spitz',
+            'Glen of Imaal Terrier', 'Golden Retriever', 'Great Dane', 'Greyhound',
+            'Havana', 'Himalayan', 'Hound', 'Husky', 'Irish Setter', 'Irish Terrier',
+            'Irish Wolfhound', 'Jack Russell Terrier',
+            'Jack Russell Terrier (Parson Russell Terrier)', 'Japanese Bobtail',
+            'Javanese', 'Kai Dog', 'Korat', 'Labrador Retriever', 'Lancashire Heeler',
+            'Lhasa Apso', 'Lowchen', 'Maine Coon', 'Maltese', 'Manchester Terrier', 'Manx',
+            'Mastiff', 'Miniature Pinscher', 'Mixed Breed', 'Mountain Dog',
+            'Munsterlander', 'Nebelung', 'Norwegian Forest Cat', 'Ocicat',
+            'Old English Sheepdog', 'Oriental Long Hair', 'Oriental Short Hair',
+            'Oriental Tabby', 'Papillon', 'Pekingese', 'Persian', 'Pit Bull Terrier',
+            'Pointer', 'Pomeranian', 'Poodle', 'Pug', 'Ragamuffin', 'Ragdoll',
+            'Rat Terrier', 'Retriever', 'Rhodesian Ridgeback', 'Rottweiler',
+            'Russian Blue', 'Saint Bernard', 'Samoyed', 'Schnauzer', 'Setter', 'Shar Pei',
+            'Shepherd', 'Shetland Sheepdog Sheltie', 'Shiba Inu', 'Shih Tzu', 'Siamese',
+            'Siberian', 'Siberian Husky', 'Silky Terrier', 'Silver', 'Singapura',
+            'Snowshoe', 'Somali', 'Spaniel', 'Sphynx (hairless cat)', 'Spitz',
+            'Staffordshire Bull Terrier', 'Standard Poodle', 'Swedish Vallhund', 'Tabby',
+            'Terrier', 'Tiger', 'Tonkinese', 'Torbie', 'Tortoiseshell', 'Toy Fox Terrier',
+            'Turkish Angora', 'Turkish Van', 'Tuxedo', 'Weimaraner', 'Welsh Corgi',
+            'West Highland White Terrier Westie', 'Wheaten Terrier', 'Whippet',
+            'White German Shepherd', 'Wirehaired Terrier', 'Yellow Labrador Retriever',
+            'Yorkshire Terrier Yorkie'
+        ];
+
+        // Normalization parameters (from training)
+        // These should be included in the ONNX model, but we include them here as backup
+        // Update these values if your model uses different normalization
+        const x_means = [0.5816, 3.1584, 9.4218, 0.5701, 1.3431, 1.8388, 0.8858, 0.4595, 0.4514, 0.6748, 0.0490, 22.6555, 3.4510];
+        const x_deviations = [0.4934, 1.9138, 19.6877, 0.4952, 1.7755, 1.6229, 0.5356, 0.5986, 0.4978, 0.8718, 0.2314, 75.6528, 3.0928];
+
+        // Age bucketization function
+        function bucketizeAge(ageInMonths) {
+            if (ageInMonths <= 1) return 0;
+            if (ageInMonths <= 2) return 1;
+            if (ageInMonths <= 3) return 2;
+            if (ageInMonths <= 4) return 3;
+            if (ageInMonths <= 5) return 4;
+            return 5;
+        }
+
+        // Load ONNX model
+        async function loadModel() {
+            try {
+                session = await ort.InferenceSession.create(modelPath);
+                console.log('Model loaded successfully');
+                return true;
+            } catch (error) {
+                console.error('Error loading model:', error);
+                showError('Failed to load model. Make sure mlp_net_model.onnx is in the same directory.');
+                return false;
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        // Make prediction
+        async function makePrediction(formData) {
+            try {
+                // Convert age to bucket
+                const age = bucketizeAge(parseInt(formData.get('age')));
+
+                // Prepare input array in the correct order:
+                // Type, Age, Breed1, Gender, Color1, Color2, MaturitySize, FurLength, Vaccinated, Sterilized, Health, Fee, PhotoAmt
+                const inputArray = [
+                    parseFloat(formData.get('type')),
+                    age,
+                    parseFloat(formData.get('breed1')),
+                    parseFloat(formData.get('gender')),
+                    parseFloat(formData.get('color1')),
+                    parseFloat(formData.get('color2')),
+                    parseFloat(formData.get('maturitySize')),
+                    parseFloat(formData.get('furLength')),
+                    parseFloat(formData.get('vaccinated')),
+                    parseFloat(formData.get('sterilized')),
+                    parseFloat(formData.get('health')),
+                    parseFloat(formData.get('fee')),
+                    parseFloat(formData.get('photoAmt'))
+                ];
+
+                // Normalize the input (subtract mean and divide by std)
+                // Note: If the ONNX model already includes normalization, this will double-normalize
+                // If predictions are off, try removing this normalization step
+                const normalizedInput = inputArray.map((val, idx) => {
+                    return (val - x_means[idx]) / (x_deviations[idx] + 0.0001); // Add small epsilon to avoid division by zero
+                });
+
+                // Create tensor
+                const tensor = new ort.Tensor('float32', new Float32Array(normalizedInput), [1, 13]);
+
+                // Run inference
+                const feeds = { input: tensor };
+                const results = await session.run(feeds);
+                const output = results.output.data;
+
+                // The model outputs probabilities for 7 classes (0-6) due to the architecture
+                // For binary classification, we interpret:
+                // - Class 0 = Not Adopted (target 0)
+                // - Classes 1-6 = Adopted (target 1) - sum their probabilities
+                const notAdoptedProb = output[0];
+                const adoptedProb = 1 - notAdoptedProb; // Sum of classes 1-6
+                
+                // Determine prediction: adopted if adopted probability > 0.5
+                const isAdopted = adoptedProb > 0.5;
+                const adoptionProbability = isAdopted ? adoptedProb : notAdoptedProb;
+
+                return {
+                    adopted: isAdopted,
+                    probability: Math.max(adoptedProb, notAdoptedProb),
+                    rawOutput: Array.from(output)
+                };
+            } catch (error) {
+                console.error('Prediction error:', error);
+                throw error;
+            }
+        }
+
+        // Display result
+        function displayResult(prediction) {
+            const resultContainer = document.getElementById('resultContainer');
+            const resultTitle = document.getElementById('resultTitle');
+            const resultText = document.getElementById('resultText');
+            const probabilityFill = document.getElementById('probabilityFill');
+
+            resultContainer.className = 'result-container show';
+            
+            if (prediction.adopted) {
+                resultContainer.className += ' result-success';
+                resultTitle.textContent = '✅ Likely to be Adopted!';
+                resultText.textContent = `This pet has a ${(prediction.probability * 100).toFixed(1)}% chance of being adopted.`;
+            } else {
+                resultContainer.className += ' result-danger';
+                resultTitle.textContent = '❌ Less Likely to be Adopted';
+                resultText.textContent = `This pet has a ${(prediction.probability * 100).toFixed(1)}% chance of NOT being adopted. Consider adjusting features like fee, photos, or health status.`;
+            }
+
+            const percentage = (prediction.probability * 100).toFixed(1);
+            probabilityFill.style.width = percentage + '%';
+            probabilityFill.textContent = percentage + '%';
+        }
+
+        // Handle form submission
+        document.getElementById('predictionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const resultContainer = document.getElementById('resultContainer');
+            
+            // Hide previous results
+            resultContainer.classList.remove('show');
+            
+            // Show loading
+            submitBtn.disabled = true;
+            loading.classList.add('show');
+            
+            try {
+                // Load model if not already loaded
+                if (!session) {
+                    const loaded = await loadModel();
+                    if (!loaded) {
+                        throw new Error('Model failed to load');
+                    }
+                }
+                
+                // Get form data
+                const formData = new FormData(e.target);
+                
+                // Make prediction
+                const prediction = await makePrediction(formData);
+                
+                // Display result
+                displayResult(prediction);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('An error occurred during prediction: ' + error.message);
+            } finally {
+                // Hide loading
+                loading.classList.remove('show');
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Populate breed dropdown
+        function populateBreedDropdown() {
+            const breedSelect = document.getElementById('breed1');
+            breeds.forEach((breed, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = breed;
+                breedSelect.appendChild(option);
+            });
+        }
+
+        // Load model on page load
+        window.addEventListener('load', async () => {
+            // Populate breed dropdown first
+            populateBreedDropdown();
+            
+            const loading = document.getElementById('loading');
+            loading.classList.add('show');
+            loading.querySelector('p').textContent = 'Loading model...';
+            
+            try {
+                await loadModel();
+                loading.querySelector('p').textContent = 'Model loaded! Fill out the form to make a prediction.';
+                setTimeout(() => {
+                    loading.classList.remove('show');
+                }, 1000);
+            } catch (error) {
+                loading.classList.remove('show');
+                showError('Failed to load model on startup. Please refresh the page.');
+            }
+        });
+    </script>
+</body>
+</html>
