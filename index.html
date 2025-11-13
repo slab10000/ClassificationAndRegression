@@ -687,17 +687,6 @@
                             <small>Overall estimated tempo in beats per minute</small>
                         </div>
 
-                        <!-- Popularity -->
-                        <div class="form-group regressor">
-                            <label for="popularity">Popularity *</label>
-                            <div class="slider-container">
-                                <div class="slider-wrapper">
-                                    <input type="range" id="popularity" name="popularity" min="0" max="100" value="50" step="1" class="slider" required>
-                                    <span class="slider-value" id="popularity_value">50</span>
-                                </div>
-                            </div>
-                            <small>Popularity score (0-100)</small>
-                        </div>
                     </div>
 
                     <button type="submit" class="submit-btn regressor" id="regressionSubmitBtn">Predict Song Popularity</button>
@@ -959,7 +948,8 @@
         const regressorModelPath = './regression/xgboost_songs_model.onnx';
 
         // Update slider values in real-time
-        const sliderIds = ['duration_ms', 'danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'tempo', 'popularity'];
+        // Note: popularity is the TARGET, not an input feature
+        const sliderIds = ['duration_ms', 'danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 'instrumentalness', 'tempo'];
         sliderIds.forEach(id => {
             const slider = document.getElementById(id);
             const valueDisplay = document.getElementById(id + '_value');
@@ -1004,8 +994,9 @@
 
         // Make regressor prediction
         async function makeRegressorPrediction(formData) {
-            // Prepare input array in the correct order:
-            // duration_ms, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, tempo, popularity
+            // Prepare input array in the correct order (10 features):
+            // duration_ms, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, tempo
+            // Note: popularity is the TARGET variable, not an input feature
             const inputArray = [
                 parseFloat(formData.get('duration_ms')),
                 parseFloat(formData.get('danceability')),
@@ -1016,12 +1007,12 @@
                 parseFloat(formData.get('speechiness')),
                 parseFloat(formData.get('acousticness')),
                 parseFloat(formData.get('instrumentalness')),
-                parseFloat(formData.get('tempo')),
-                parseFloat(formData.get('popularity'))
+                parseFloat(formData.get('tempo'))
             ];
 
             // Create tensor (XGBoost expects 2D input: [batch_size, num_features])
-            const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 11]);
+            // Model expects 10 features (popularity is the target, not an input)
+            const tensor = new ort.Tensor('float32', new Float32Array(inputArray), [1, 10]);
 
             // Get the input name from the model (hummingbird models typically use 'input')
             const inputNames = regressorSession.inputNames;
